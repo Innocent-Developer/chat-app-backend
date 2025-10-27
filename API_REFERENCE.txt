@@ -1,0 +1,185 @@
+FLASH CHAT BACKEND - API REFERENCE
+
+Base URL
+- Development: http://localhost:5000
+- Health Check: GET /health -> { "status": "ok" }
+
+Authentication
+- Scheme: Bearer JWT in Authorization header
+  Example: Authorization: Bearer <TOKEN>
+
+Environment
+- PORT, MONGODB_URI, JWT_SECRET, CLIENT_ORIGIN (see .env.example)
+
+Error Format
+- { "message": "<description>" }
+
+==============================
+AUTH
+==============================
+1) Register
+- Method: POST
+- Path: /api/auth/register
+- Headers: Content-Type: application/json
+- Body:
+  {
+    "name": "Alice",
+    "email": "alice@example.com",
+    "password": "Passw0rd!"
+  }
+- Success 201:
+  {
+    "token": "<JWT>",
+    "user": { "id": "...", "name": "Alice", "email": "alice@example.com" }
+  }
+- Hints:
+  - Email must be unique.
+  - Password is hashed server-side.
+
+2) Login
+- Method: POST
+- Path: /api/auth/login
+- Headers: Content-Type: application/json
+- Body:
+  {
+    "email": "alice@example.com",
+    "password": "Passw0rd!"
+  }
+- Success 200:
+  {
+    "token": "<JWT>",
+    "user": { "id": "...", "name": "Alice", "email": "alice@example.com" }
+  }
+- Hints:
+  - Use the returned token for subsequent requests (Authorization header).
+
+3) Me
+- Method: GET
+- Path: /api/auth/me
+- Headers:
+  - Authorization: Bearer <TOKEN>
+- Success 200:
+  { "id": "<userId>" }
+- Hints:
+  - Validates token and returns authenticated user's id.
+
+==============================
+CHATS
+==============================
+1) List My Chats
+- Method: GET
+- Path: /api/chats
+- Headers:
+  - Authorization: Bearer <TOKEN>
+- Success 200: [
+  {
+    "_id": "<chatId>",
+    "isGroupChat": false,
+    "users": [ { "_id": "...", "name": "...", "email": "..." }, ... ],
+    "latestMessage": { "_id": "...", "sender": { "_id": "...", "name": "..." }, "content": "..." },
+    "createdAt": "...",
+    "updatedAt": "..."
+  }
+]
+- Hints:
+  - Returns all chats the user participates in.
+
+2) Access 1:1 Chat (Get or Create)
+- Method: POST
+- Path: /api/chats/access
+- Headers:
+  - Content-Type: application/json
+  - Authorization: Bearer <TOKEN>
+- Body:
+  { "user": "<otherUserId>" }
+- Success 201:
+  {
+    "_id": "<chatId>",
+    "isGroupChat": false,
+    "users": ["<meId>", "<otherUserId>"]
+  }
+- Hints:
+  - If a 1:1 chat exists between the two users, it's returned; otherwise it's created.
+
+==============================
+MESSAGES
+==============================
+1) Get Messages in Chat
+- Method: GET
+- Path: /api/messages/:chatId
+- Headers:
+  - Authorization: Bearer <TOKEN>
+- Success 200: [
+  {
+    "_id": "<messageId>",
+    "sender": { "_id": "...", "name": "...", "email": "..." },
+    "content": "Hello",
+    "chat": "<chatId>",
+    "readBy": ["<userId>", ...],
+    "createdAt": "...",
+    "updatedAt": "..."
+  }
+]
+- Hints:
+  - Use this to render conversation history for a chat.
+
+2) Send Message
+- Method: POST
+- Path: /api/messages
+- Headers:
+  - Content-Type: application/json
+  - Authorization: Bearer <TOKEN>
+- Body:
+  {
+    "chatId": "<chatId>",
+    "content": "Hello there"
+  }
+- Success 201:
+  {
+    "_id": "<messageId>",
+    "sender": "<myUserId>",
+    "content": "Hello there",
+    "chat": "<chatId>",
+    "readBy": [],
+    "createdAt": "...",
+    "updatedAt": "..."
+  }
+- Hints:
+  - Pair with Socket.IO to broadcast to room = chatId.
+
+==============================
+SOCKET.IO
+==============================
+- Namespace: default (same origin as HTTP server)
+- CORS origin: CLIENT_ORIGIN
+
+Events
+1) Join Room
+- Client -> Server: "join"
+- Payload: "<chatId>"
+- Purpose: Join a chat room to receive messages in real time.
+
+2) Send/Broadcast Message
+- Client -> Server: "message"
+- Payload: { "room": "<chatId>", "message": <any> }
+- Server -> Clients in room: "message" with <any>
+
+Example (client)
+- socket.emit("join", chatId)
+- socket.emit("message", { room: chatId, message: { text: "Hello" } })
+- socket.on("message", (payload) => { /* update UI */ })
+
+==============================
+HEADERS QUICK REFERENCE
+==============================
+- Content-Type: application/json (for POST bodies)
+- Authorization: Bearer <TOKEN> (for protected routes)
+
+==============================
+COMMON HINTS
+==============================
+- Obtain <TOKEN> from /api/auth/login or /api/auth/register.
+- Persist token on the client (memory or secure storage) and send it in Authorization header.
+- chatId is the MongoDB ObjectId of a chat.
+- For production, tighten CORS and rotate JWT_SECRET.
+- Health check endpoint is unauthenticated, good for readiness probes.
