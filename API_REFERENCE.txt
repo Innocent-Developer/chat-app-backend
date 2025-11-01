@@ -29,12 +29,37 @@ AUTH
   }
 - Success 201:
   {
-    "token": "<JWT>",
-    "user": { "id": "...", "name": "Alice", "email": "alice@example.com" }
+    "message": "OTP sent",
+    "email": "alice@example.com"
   }
 - Hints:
   - Email must be unique.
   - Password is hashed server-side.
+
+2a) Verify OTP
+- Method: POST
+- Path: /api/auth/verify-otp
+- Headers: Content-Type: application/json
+- Body:
+  { "email": "alice@example.com", "code": "123456" }
+- Success 200:
+  {
+    "token": "<JWT>",
+    "user": { "id": "...", "name": "Alice", "email": "alice@example.com" }
+  }
+- Hints:
+  - Use this after registering or if login is blocked due to not verified.
+
+2b) Resend OTP
+- Method: POST
+- Path: /api/auth/resend-otp
+- Headers: Content-Type: application/json
+- Body:
+  { "email": "alice@example.com" }
+- Success 200:
+  { "message": "OTP sent", "email": "alice@example.com" }
+- Hints:
+  - OTP expires in ~10 minutes; request a new one if expired.
 
 2) Login
 - Method: POST
@@ -51,6 +76,7 @@ AUTH
     "user": { "id": "...", "name": "Alice", "email": "alice@example.com" }
   }
 - Hints:
+  - Account must be verified before login will succeed (403 otherwise).
   - Use the returned token for subsequent requests (Authorization header).
 
 3) Me
@@ -178,7 +204,7 @@ HEADERS QUICK REFERENCE
 ==============================
 COMMON HINTS
 ==============================
-- Obtain <TOKEN> from /api/auth/login or /api/auth/register.
+- Obtain <TOKEN> from /api/auth/verify-otp (after registering) or /api/auth/login.
 - Persist token on the client (memory or secure storage) and send it in Authorization header.
 - chatId is the MongoDB ObjectId of a chat.
 - For production, tighten CORS and rotate JWT_SECRET.

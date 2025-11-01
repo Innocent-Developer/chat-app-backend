@@ -13,7 +13,18 @@ import { authLimiter } from "./middleware/rateLimit";
 const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: env.clientOrigin, credentials: true }));
+const allowedOrigins = new Set(env.clientOrigins);
+const lanViteRegex = /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+):5173$/;
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.has(origin) || lanViteRegex.test(origin)) return callback(null, true);
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  })
+);
 app.use(morgan(env.nodeEnv === "development" ? "dev" : "combined"));
 app.use(express.json());
 app.use(cookieParser());
